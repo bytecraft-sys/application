@@ -59,26 +59,17 @@ Current behavior:
 - `AuraCircle` accepts `state: AuraState` and optional `amplitude`.
 - Drawing is done with Compose `Canvas` and `drawCircle`.
 - Idle/breathing animation uses `rememberInfiniteTransition`.
-- Voice input currently uses Android `SpeechRecognizer`, not `AudioRecord`.
-- `VoiceToTextParser.onRmsChanged` does not update amplitude.
-- `HomeScreen` currently hardcodes `AuraCircle(state = AuraState.Breathing)`.
-- Mic button toggles speech recognition through `onToggleVoice`.
-- There is no keyboard icon that controls a custom slide-up text input.
-- The text input offsets itself using `WindowInsets.ime`; this is default keyboard-inset behavior, not a custom keyboard-icon animation.
+- Voice input still uses Android `SpeechRecognizer` for transcription.
+- Real-time glow amplitude is read separately from `AudioRecord`.
+- `HomeScreen` switches `AuraCircle` between `Breathing` and `Listening` from `voiceState.isSpeaking`.
+- `HomeScreen` passes `voiceState.amplitude` into `AuraCircle`.
+- Mic button toggles listening through `onToggleVoice`.
+- A keyboard icon opens the text input with a custom animated slide from the bottom.
 - Upward scroll updates `scrollOffset` and fades the Aura circle via alpha.
-- Parallax is not implemented yet.
+- Upward scroll also applies parallax via `graphicsLayer.translationY`.
 - Chat history uses `LazyPagingItems<ChatMessage>` from Room through `ChatMessageDao.pagingSourceForSession`.
-- `PagingConfig` sets `pageSize = 20`, but does not set `initialLoadSize = 20`.
-- Chat row UI shows message content and sometimes `AI`, but does not show timestamp and does not show sender for user messages.
-
-Part 2 known requirement gaps:
-
-- Implement real mic amplitude with `AudioRecord`.
-- Drive `AuraCircle` state and amplitude from listening state.
-- Add keyboard icon driven custom slide-up input.
-- Add scroll parallax during the Aura-to-history transition.
-- Render sender, message, and timestamp on every chat row.
-- Configure paging to load exactly 20 items at a time.
+- `PagingConfig` sets `pageSize = 20` and `initialLoadSize = 20`.
+- Chat row UI shows sender, timestamp, and message content.
 
 ## Part 3: Coroutine State Machine
 
@@ -100,19 +91,12 @@ Current behavior:
 - Processing timeout is exactly `8_000L`.
 - Timeout transitions to `ChatState.Error("Request timed out")`.
 - A new message during `Processing` cancels the active processing job and restarts the pipeline.
-- A new message during `Responding` is not explicitly cancelled.
-- `HomeScreen` accepts `chatState`, but does not render visibly different UI per state.
-- Error retry UI is missing.
+- A new message during `Responding` cancels the active job and restarts the pipeline.
+- `HomeScreen` renders a visibly different `ChatStateBanner` for each chat state.
+- Error UI includes a retry action through `ChatViewModel.retryLastMessage`.
 - Unit tests use `StandardTestDispatcher`.
 - Tests cover cancellation during processing and timeout-to-error.
-- Happy-path test currently asserts only `Processing` then `Idle`, not the full exact state sequence.
-
-Part 3 known requirement gaps:
-
-- Render different UI for each `ChatState`.
-- Cancel and restart when a new message arrives during `Responding`.
-- Show retry UI for `Error`.
-- Update happy-path test to assert the full sequence `Typing -> Validating -> Processing -> Responding -> Idle`.
+- Happy-path test asserts the full sequence `Typing -> Validating -> Processing -> Responding -> Idle`.
 
 ## Verification
 

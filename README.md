@@ -21,23 +21,30 @@ Status: Complete against the reviewed requirements.
 
 ### Part 2: Home Screen
 
-Status: Partially implemented. The following requirements are still broken or missing:
+Status: Complete against the previously reviewed fail/missing requirements.
 
-- Listening glow does not use real mic amplitude from `AudioRecord`.
-- Mic button starts speech recognition, but `AuraCircle` is still hardcoded to breathing state.
-- Keyboard icon custom slide-up input is missing.
-- Scroll fade exists, but the parallax effect is missing.
-- Chat rows do not show timestamp, and user rows do not show sender.
-- Paging uses `pageSize = 20`, but does not guarantee exactly 20 items per load.
+- `AuraCircle` is pure Canvas, standalone, and accepts `AuraState` plus amplitude.
+- Idle state uses a slow breathing pulse animation.
+- Listening state uses real mic amplitude from `AudioRecord`.
+- The mic button drives listening state and feeds amplitude into `AuraCircle`.
+- The keyboard icon opens the text input with a custom slide-up animation.
+- Upward scroll fades the Aura circle and applies a parallax translation into the chat list.
+- Chat history is loaded from Room through Paging.
+- Chat rows show sender, message, and timestamp.
+- Paging is configured with `pageSize = 20` and `initialLoadSize = 20`.
 
 ### Part 3: Coroutine State Machine
 
-Status: Partially implemented. The following requirements are still broken or missing:
+Status: Complete against the previously reviewed fail/missing requirements.
 
-- `HomeScreen` receives `chatState`, but does not render visibly different UI for each state.
-- New messages during `Responding` do not cancel the current flow.
-- Error state does not show a retry option in the UI.
-- Happy-path unit test does not assert the full exact sequence `Typing -> Validating -> Processing -> Responding -> Idle`.
+- The state machine uses `StateFlow` and sealed `ChatState`.
+- Normal messages follow `Typing -> Validating -> Processing -> Responding -> Idle`.
+- Processing timeout is exactly 8 seconds.
+- Timeout moves to `Error`.
+- New messages during `Processing` or `Responding` cancel the active job and restart the pipeline.
+- `HomeScreen` renders visibly different UI per chat state.
+- Error UI includes a retry action.
+- Unit tests cover the full happy-path sequence, cancellation, and timeout using `StandardTestDispatcher`.
 
 ## Tech Stack
 

@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.yield
 
 @ViewModelScoped
 class ChatStateMachine @Inject constructor(
@@ -38,11 +37,7 @@ class ChatStateMachine @Inject constructor(
             mutex.withLock {
                 val currentState = _state.value
                 if (currentState is ChatState.Processing || currentState is ChatState.Responding) {
-                    val jobToCancel = when (currentState) {
-                        is ChatState.Processing -> currentState.job
-                        is ChatState.Responding -> activeJob
-                        else -> null
-                    }
+                    val jobToCancel = if (currentState is ChatState.Processing) currentState.job else activeJob
                     jobToCancel?.cancelAndJoin()
                     if (activeJob == jobToCancel) {
                         activeJob = null
@@ -50,9 +45,9 @@ class ChatStateMachine @Inject constructor(
                 }
 
                 transitionTo(ChatState.Typing)
-                yield()
+                delay(TRANSIENT_STATE_MS)
                 transitionTo(ChatState.Validating)
-                yield()
+                delay(TRANSIENT_STATE_MS)
 
                 if (content.isBlank()) {
                     transitionTo(ChatState.Error("Message cannot be empty"))
@@ -97,6 +92,7 @@ class ChatStateMachine @Inject constructor(
     }
 
     private companion object {
+        private const val TRANSIENT_STATE_MS = 1L
         private const val RESPONDING_STATE_MS = 250L
     }
 }

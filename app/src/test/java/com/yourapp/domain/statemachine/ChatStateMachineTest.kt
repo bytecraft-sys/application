@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -36,25 +37,35 @@ class ChatStateMachineTest {
     }
 
     @Test
-    fun `typing to idle transition`() = runTest(testDispatcher) {
+    fun `happy path follows exact pipeline`() = runTest(testDispatcher) {
+        stateMachine.close()
+        val logger = RecordingChatStateLogger()
+        stateMachine = ChatStateMachine(testDispatcher, DelayedProcessor(), logger)
+
         stateMachine.sendMessage("Hello")
-        testDispatcher.scheduler.runCurrent()
-
-        assertTrue(stateMachine.state.value is ChatState.Processing)
-
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(ChatState.Idle, stateMachine.state.value)
+        val states = logger.transitions.map { it.second }
+        assertEquals(5, states.size)
+        assertTrue(states[0] is ChatState.Typing)
+        assertTrue(states[1] is ChatState.Validating)
+        assertTrue(states[2] is ChatState.Processing)
+        assertTrue(states[3] is ChatState.Responding)
+        assertEquals(ChatState.Idle, states[4])
     }
 
     @Test
     fun `second message cancels first processing job`() = runTest(testDispatcher) {
         stateMachine.sendMessage("Message A")
         testDispatcher.scheduler.runCurrent()
+        testDispatcher.scheduler.advanceTimeBy(2L)
+        testDispatcher.scheduler.runCurrent()
 
         val firstJob = (stateMachine.state.value as ChatState.Processing).job
 
         stateMachine.sendMessage("Message B")
+        testDispatcher.scheduler.runCurrent()
+        testDispatcher.scheduler.advanceTimeBy(2L)
         testDispatcher.scheduler.runCurrent()
 
         assertTrue(firstJob.isCancelled)
@@ -70,6 +81,8 @@ class ChatStateMachineTest {
 
         stateMachine.sendMessage("Slow message")
         testDispatcher.scheduler.runCurrent()
+        testDispatcher.scheduler.advanceTimeBy(2L)
+        testDispatcher.scheduler.runCurrent()
 
         assertTrue(stateMachine.state.value is ChatState.Processing)
 
@@ -79,5 +92,20 @@ class ChatStateMachineTest {
         val state = stateMachine.state.value
         assertTrue(state is ChatState.Error)
         assertTrue((state as ChatState.Error).message.contains("timed out"))
+    }
+
+    private class DelayedProcessor : ChatMessageProcessor {
+        override suspend fun process(message: String): String {
+            delay(100L)
+            return "Response to $message"
+        }
+    }
+
+    private class RecordingChatStateLogger : ChatStateLogger {
+        val transitions = mutableListOf<Pair<ChatState, ChatState>>()
+
+        override fun logTransition(previousState: ChatState, nextState: ChatState) {
+            transitions += previousState to nextState
+        }
     }
 }

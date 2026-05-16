@@ -54,6 +54,7 @@ fun HomeRoute(
                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             }
         },
-        onClearChat = viewModel::clearChat
+        onClearChat = viewModel::clearChat,
+        onRetry = viewModel::retryLastMessage,
     )
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 
 @ViewModelScoped
 class ChatStateMachine @Inject constructor(
@@ -28,6 +29,7 @@ class ChatStateMachine @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val mutex = Mutex()
     private val _state = MutableStateFlow<ChatState>(ChatState.Idle)
+    private var activeJob: Job? = null
 
     val state: StateFlow<ChatState> = _state.asStateFlow()
 
@@ -35,12 +37,22 @@ class ChatStateMachine @Inject constructor(
         scope.launch {
             mutex.withLock {
                 val currentState = _state.value
-                if (currentState is ChatState.Processing) {
-                    currentState.job.cancelAndJoin()
+                if (currentState is ChatState.Processing || currentState is ChatState.Responding) {
+                    val jobToCancel = when (currentState) {
+                        is ChatState.Processing -> currentState.job
+                        is ChatState.Responding -> activeJob
+                        else -> null
+                    }
+                    jobToCancel?.cancelAndJoin()
+                    if (activeJob == jobToCancel) {
+                        activeJob = null
+                    }
                 }
 
                 transitionTo(ChatState.Typing)
+                yield()
                 transitionTo(ChatState.Validating)
+                yield()
 
                 if (content.isBlank()) {
                     transitionTo(ChatState.Error("Message cannot be empty"))
@@ -48,6 +60,7 @@ class ChatStateMachine @Inject constructor(
                 }
 
                 val processingJob = launchProcessingJob(content.trim())
+                activeJob = processingJob
                 transitionTo(ChatState.Processing(processingJob))
             }
         }
@@ -65,12 +78,15 @@ class ChatStateMachine @Inject constructor(
             }
             delay(RESPONDING_STATE_MS)
             transitionTo(ChatState.Idle)
+            activeJob = null
         } catch (exception: TimeoutCancellationException) {
             transitionTo(ChatState.Error("Request timed out"))
+            activeJob = null
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
             transitionTo(ChatState.Error(exception.message ?: "Unable to process request"))
+            activeJob = null
         }
     }
 

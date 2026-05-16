@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -42,6 +41,9 @@ import com.yourapp.data.local.ChatMessage
 import com.yourapp.data.local.MessageMeta
 import com.yourapp.domain.statemachine.ChatState
 import com.yourapp.ui.chat.VoiceToTextParserState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.flow.flowOf
 import kotlin.math.roundToInt
 
@@ -64,21 +66,25 @@ fun HomeScreen(
     onNewChat: () -> Unit,
     onToggleVoice: () -> Unit,
     onClearChat: () -> Unit,
+    onRetry: () -> Unit = {},
 ) {
     var text by remember { mutableStateOf("") }
-    var imeHeight by remember { mutableFloatStateOf(0f) }
+    var isTextInputVisible by remember { mutableStateOf(false) }
     var scrollOffset by remember { mutableFloatStateOf(0f) }
     var isSearchActive by remember { mutableStateOf(false) }
     
-    val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
     
-    val imeBottom = WindowInsets.ime.getBottom(density)
     val inputOffset by animateFloatAsState(
-        targetValue = imeHeight,
+        targetValue = if (isTextInputVisible) 0f else INPUT_HIDDEN_OFFSET_PX,
         animationSpec = tween(250),
-        label = "Keyboard input offset",
+        label = "Text input slide offset",
+    )
+    val inputAlpha by animateFloatAsState(
+        targetValue = if (isTextInputVisible) 1f else 0f,
+        animationSpec = tween(250),
+        label = "Text input alpha",
     )
     val auraAlpha by remember {
         derivedStateOf {
@@ -107,10 +113,6 @@ fun HomeScreen(
                 return Offset.Zero
             }
         }
-    }
-
-    LaunchedEffect(imeBottom) {
-        imeHeight = imeBottom.toFloat()
     }
 
     Scaffold(
@@ -148,12 +150,22 @@ fun HomeScreen(
             ) {
                 Spacer(modifier = Modifier.height(20.dp))
                 AuraCircle(
-                    state = AuraState.Breathing,
+                    state = if (voiceState.isSpeaking) AuraState.Listening else AuraState.Breathing,
+                    amplitude = voiceState.amplitude,
                     modifier = Modifier
                         .size(240.dp)
-                        .graphicsLayer(alpha = auraAlpha),
+                        .graphicsLayer(
+                            alpha = auraAlpha,
+                            translationY = -scrollOffset * AURA_PARALLAX_FACTOR,
+                        ),
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                ChatStateBanner(
+                    chatState = chatState,
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
                 ChatHistoryList(
                     messages = messages,
@@ -167,6 +179,15 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(92.dp))
             }
 
+            if (!isTextInputVisible) {
+                InputLauncher(
+                    isListening = voiceState.isSpeaking,
+                    onShowKeyboard = { isTextInputVisible = true },
+                    onToggleVoice = onToggleVoice,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+
             MessageInput(
                 value = text,
                 onValueChange = { text = it },
@@ -177,14 +198,82 @@ fun HomeScreen(
                         focusManager.clearFocus()
                     }
                 },
+                onHideKeyboard = {
+                    isTextInputVisible = false
+                    focusManager.clearFocus()
+                },
                 onToggleVoice = onToggleVoice,
                 isListening = voiceState.isSpeaking,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .offset {
-                        IntOffset(0, -inputOffset.roundToInt())
-                    },
+                        IntOffset(0, inputOffset.roundToInt())
+                    }
+                    .graphicsLayer(alpha = inputAlpha),
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatStateBanner(
+    chatState: ChatState,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = when (chatState) {
+        ChatState.Idle -> "Ready"
+        ChatState.Typing -> "Typing..."
+        ChatState.Validating -> "Checking message"
+        is ChatState.Processing -> "Thinking..."
+        is ChatState.Responding -> "Writing response"
+        is ChatState.Error -> chatState.message
+    }
+    val containerColor = when (chatState) {
+        ChatState.Idle -> MaterialTheme.colorScheme.surfaceVariant
+        ChatState.Typing -> MaterialTheme.colorScheme.primaryContainer
+        ChatState.Validating -> MaterialTheme.colorScheme.secondaryContainer
+        is ChatState.Processing -> MaterialTheme.colorScheme.tertiaryContainer
+        is ChatState.Responding -> MaterialTheme.colorScheme.primary
+        is ChatState.Error -> MaterialTheme.colorScheme.errorContainer
+    }
+    val contentColor = when (chatState) {
+        ChatState.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
+        ChatState.Typing -> MaterialTheme.colorScheme.onPrimaryContainer
+        ChatState.Validating -> MaterialTheme.colorScheme.onSecondaryContainer
+        is ChatState.Processing -> MaterialTheme.colorScheme.onTertiaryContainer
+        is ChatState.Responding -> MaterialTheme.colorScheme.onPrimary
+        is ChatState.Error -> MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    Surface(
+        color = containerColor,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (chatState is ChatState.Processing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = contentColor,
+                )
+            }
+            if (chatState is ChatState.Error) {
+                TextButton(onClick = onRetry) {
+                    Text("Retry")
+                }
+            }
         }
     }
 }
@@ -295,6 +384,14 @@ private fun ChatMessageRow(
 ) {
     val isUser = message.role == "user"
     val isError = message.content.startsWith("Error:")
+    val sender = when {
+        isUser -> "You"
+        isError -> "Error"
+        else -> "AI"
+    }
+    val timestamp = remember(message.timestamp) {
+        SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(message.timestamp))
+    }
     
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val backgroundColor = when {
@@ -334,15 +431,26 @@ private fun ChatMessageRow(
                 )
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                if (!isUser && !isError) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = "AI",
+                        text = sender,
                         style = MaterialTheme.typography.labelSmall,
                         color = contentColor.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = timestamp,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor.copy(alpha = 0.6f),
                     )
                 }
-                
+                 
                 val annotatedContent = remember(message.content, highlightQuery) {
                     if (highlightQuery.isNullOrBlank()) {
                         buildAnnotatedString { append(message.content) }
@@ -381,10 +489,48 @@ private fun ChatMessageRow(
 }
 
 @Composable
+private fun InputLauncher(
+    isListening: Boolean,
+    onShowKeyboard: () -> Unit,
+    onToggleVoice: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 8.dp,
+        shadowElevation = 12.dp,
+        shape = RoundedCornerShape(32.dp),
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 20.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            IconButton(onClick = onShowKeyboard) {
+                Icon(
+                    imageVector = Icons.Default.Keyboard,
+                    contentDescription = "Open keyboard input",
+                )
+            }
+            IconButton(onClick = onToggleVoice) {
+                Icon(
+                    imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
+                    contentDescription = if (isListening) "Stop listening" else "Start listening",
+                    tint = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MessageInput(
     value: String,
     onValueChange: (String) -> Unit,
     onDone: () -> Unit,
+    onHideKeyboard: () -> Unit,
     onToggleVoice: () -> Unit,
     isListening: Boolean,
     modifier: Modifier = Modifier,
@@ -403,6 +549,13 @@ private fun MessageInput(
                 .padding(horizontal = 8.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onHideKeyboard) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardHide,
+                    contentDescription = "Hide keyboard input",
+                )
+            }
+
             IconButton(onClick = onToggleVoice) {
                 Icon(
                     imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
@@ -450,3 +603,6 @@ private fun MessageInput(
         }
     }
 }
+
+private const val INPUT_HIDDEN_OFFSET_PX = 160f
+private const val AURA_PARALLAX_FACTOR = 0.35f

@@ -47,6 +47,7 @@ class ChatViewModel @Inject constructor(
 
     private val _currentSearchIndex = MutableStateFlow(0)
     val currentSearchIndex: StateFlow<Int> = _currentSearchIndex.asStateFlow()
+    private var lastSubmittedMessage: String? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val searchResults: StateFlow<List<ChatMessage>> = combine(
@@ -68,7 +69,8 @@ class ChatViewModel @Inject constructor(
         } else {
             Pager(
                 config = PagingConfig(
-                    pageSize = 20,
+                    pageSize = CHAT_PAGE_SIZE,
+                    initialLoadSize = CHAT_PAGE_SIZE,
                     enablePlaceholders = false,
                 ),
                 pagingSourceFactory = { chatMessageDao.pagingSourceForSession(sessionId) },
@@ -113,6 +115,7 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(content: String) {
         val trimmedContent = content.trim()
         if (trimmedContent.isBlank()) return
+        lastSubmittedMessage = trimmedContent
 
         viewModelScope.launch {
             if (_currentSessionId.value == null) {
@@ -141,6 +144,10 @@ class ChatViewModel @Inject constructor(
             )
             chatStateMachine.sendMessage(trimmedContent)
         }
+    }
+
+    fun retryLastMessage() {
+        lastSubmittedMessage?.let(::sendMessage)
     }
 
     fun loadSession(sessionId: String) {
@@ -191,5 +198,9 @@ class ChatViewModel @Inject constructor(
     override fun onCleared() {
         chatStateMachine.close()
         super.onCleared()
+    }
+
+    private companion object {
+        private const val CHAT_PAGE_SIZE = 20
     }
 }

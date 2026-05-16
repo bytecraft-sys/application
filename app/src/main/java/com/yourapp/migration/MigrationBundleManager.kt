@@ -1,6 +1,7 @@
 package com.yourapp.migration
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.datastore.dataStoreFile
 import androidx.room.Room
 import com.yourapp.data.local.AppDatabase
@@ -229,10 +230,9 @@ class MigrationBundleManager @Inject constructor(
     }
 
     private fun markRestored(bundleUuid: String) {
-        restorePrefs()
-            .edit()
-            .putBoolean(bundleUuid, true)
-            .apply()
+        restorePrefs().edit {
+            putBoolean(bundleUuid, true)
+        }
     }
 
     private fun restorePrefs() = context.getSharedPreferences(

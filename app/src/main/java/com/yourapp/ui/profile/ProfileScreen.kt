@@ -64,7 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.application.ui.theme.ApplicationTheme
 import com.yourapp.data.local.UserProfile
 
@@ -154,12 +154,13 @@ fun ProfileScreen(
                     message = profileState.message,
                     modifier = Modifier.fillMaxSize(),
                 )
-                else -> {
+                is ProfileState.Viewing,
+                is ProfileState.Editing,
+                ProfileState.Saving -> {
                     val profile = when (profileState) {
                         is ProfileState.Viewing -> profileState.profile
                         is ProfileState.Editing -> profileState.profile
                         ProfileState.Saving -> lastProfile
-                        else -> null
                     }
 
                     if (profile == null) {

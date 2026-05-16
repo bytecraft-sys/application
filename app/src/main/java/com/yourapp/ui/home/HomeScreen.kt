@@ -50,6 +50,7 @@ fun HomeScreen(
     messages: LazyPagingItems<ChatMessage>,
     chatState: ChatState,
     voiceState: VoiceToTextParserState,
+    modifier: Modifier = Modifier,
     searchQuery: String = "",
     searchResults: List<ChatMessage> = emptyList(),
     currentSearchIndex: Int = 0,
@@ -63,7 +64,6 @@ fun HomeScreen(
     onNewChat: () -> Unit,
     onToggleVoice: () -> Unit,
     onClearChat: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
     var imeHeight by remember { mutableFloatStateOf(0f) }

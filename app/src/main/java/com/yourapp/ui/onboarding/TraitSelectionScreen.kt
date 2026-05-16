@@ -30,7 +30,7 @@ fun TraitSelectionScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Choose up to 3 traits",
+            text = "Choose exactly $REQUIRED_TRAIT_COUNT traits",
             style = MaterialTheme.typography.headlineSmall,
         )
         Spacer(modifier = Modifier.height(18.dp))

@@ -18,6 +18,7 @@ object UserProfileSerializer : Serializer<UserProfile> {
         selectedTraits = emptyList(),
         createdAt = 0L,
         lastSyncedAt = 0L,
+        otp = "",
     )
 
     override suspend fun readFrom(input: InputStream): UserProfile {

@@ -31,9 +31,6 @@ object LocalDataModule {
         .build()
 
     @Provides
-    fun provideUserProfileDao(database: AppDatabase): UserProfileDao = database.userProfileDao()
-
-    @Provides
     fun provideChatMessageDao(database: AppDatabase): ChatMessageDao = database.chatMessageDao()
 
     @Provides

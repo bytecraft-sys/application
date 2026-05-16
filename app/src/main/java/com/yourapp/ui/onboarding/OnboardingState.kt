@@ -1,5 +1,7 @@
 package com.yourapp.ui.onboarding
 
+const val REQUIRED_TRAIT_COUNT = 3
+
 data class OnboardingState(
     val name: String = "",
     val age: String = "",
@@ -23,4 +25,7 @@ data class OnboardingState(
             phone.length == 10 &&
             phone.all(Char::isDigit) &&
             isOtpVerified
+
+    val isTraitsStepValid: Boolean
+        get() = selectedTraits.size == REQUIRED_TRAIT_COUNT
 }

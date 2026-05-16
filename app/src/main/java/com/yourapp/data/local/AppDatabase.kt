@@ -8,7 +8,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
-        UserProfile::class,
         ChatMessage::class,
         ChatSession::class,
     ],
@@ -20,8 +19,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     StringListConverter::class,
 )
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun userProfileDao(): UserProfileDao
-
     abstract fun chatMessageDao(): ChatMessageDao
 
     abstract fun chatSessionDao(): ChatSessionDao

@@ -74,7 +74,7 @@ class OnboardingViewModel @Inject constructor(
             val selected = current.selectedTraits
             when {
                 trait in selected -> current.copy(selectedTraits = selected - trait)
-                selected.size >= MAX_TRAITS -> {
+                selected.size >= REQUIRED_TRAIT_COUNT -> {
                     reachedMax = true
                     current
                 }
@@ -86,7 +86,7 @@ class OnboardingViewModel @Inject constructor(
 
     fun onOnboardingComplete() {
         val snapshot = _state.value
-        if (!snapshot.isProfileStepValid || snapshot.isSaving) return
+        if (!snapshot.isProfileStepValid || !snapshot.isTraitsStepValid || snapshot.isSaving) return
 
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true) }
@@ -97,6 +97,7 @@ class OnboardingViewModel @Inject constructor(
                     name = snapshot.name.trim(),
                     age = snapshot.age.toInt(),
                     phone = snapshot.phone,
+                    otp = snapshot.otp,
                     selectedTraits = snapshot.selectedTraits.toList(),
                     createdAt = now,
                     lastSyncedAt = 0L,
@@ -123,6 +124,5 @@ class OnboardingViewModel @Inject constructor(
 
     private companion object {
         private const val LOCAL_USER_ID = "local-user"
-        private const val MAX_TRAITS = 3
     }
 }

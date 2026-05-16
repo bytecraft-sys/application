@@ -20,6 +20,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -45,6 +46,12 @@ fun OnboardingScreen(
     val pagerState = rememberPagerState(pageCount = { ONBOARDING_PAGE_COUNT })
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(pagerState.currentPage, state.isProfileStepValid) {
+        if (pagerState.currentPage == 2 && !state.isProfileStepValid) {
+            pagerState.animateScrollToPage(1)
+        }
+    }
 
     BackHandler(enabled = pagerState.currentPage > 0) {
         scope.launch {
@@ -76,7 +83,6 @@ fun OnboardingScreen(
 
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = false,
                 modifier = Modifier.weight(1f),
             ) { page ->
                 when (page) {
@@ -124,7 +130,7 @@ fun OnboardingScreen(
                 Button(
                     enabled = when (pagerState.currentPage) {
                         1 -> state.isProfileStepValid
-                        2 -> !state.isSaving
+                        2 -> state.isTraitsStepValid && !state.isSaving
                         else -> true
                     },
                     onClick = {
@@ -133,7 +139,7 @@ fun OnboardingScreen(
                             1 -> if (state.isProfileStepValid) {
                                 scope.launch { pagerState.animateScrollToPage(2) }
                             }
-                            2 -> onDone()
+                            2 -> if (state.isTraitsStepValid) onDone()
                         }
                     },
                 ) {
@@ -157,7 +163,7 @@ fun OnboardingScreenPreview() {
                 phone = "5551234567",
                 otpDigits = listOf("1", "2", "3", "4"),
                 isOtpVerified = true,
-                selectedTraits = setOf("Curious", "Creative"),
+                selectedTraits = setOf("Curious", "Creative", "Direct"),
             ),
             onNameChanged = {},
             onAgeChanged = {},
